@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fechamento de Caixa</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 { text-align: center; margin-bottom: 20px; color: #00d4aa; font-size: 1.8rem; }
+        .info-bar { text-align: center; margin-bottom: 15px; color: #aaa; font-size: 0.9rem; }
+        .info-bar span { margin: 0 15px; }
+
+        .uploads { display: flex; gap: 20px; max-width: 900px; margin: 0 auto 30px; flex-wrap: wrap; justify-content: center; }
+        .upload-area {
+            flex: 1; min-width: 280px; max-width: 420px;
+            border: 2px dashed #00d4aa; border-radius: 12px; padding: 30px;
+            text-align: center; cursor: pointer; transition: all 0.3s;
+            background: rgba(0, 212, 170, 0.05);
+        }
+        .upload-area.pdf-upload { border-color: #ff9800; background: rgba(255, 152, 0, 0.05); }
+        .upload-area.pdf-upload:hover, .upload-area.pdf-upload.dragover {
+            background: rgba(255, 152, 0, 0.15); border-color: #ffb74d;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            background: rgba(0, 212, 170, 0.15); border-color: #00ffcc;
+        }
+        .upload-area p { font-size: 0.95rem; color: #ccc; }
+        .upload-area .icon { font-size: 2rem; margin-bottom: 8px; }
+        .upload-area input { display: none; }
+        .upload-area .filename { margin-top: 8px; color: #00d4aa; font-weight: bold; font-size: 0.85rem; }
+        .upload-area.pdf-upload .filename { color: #ff9800; }
+        .upload-area .status { margin-top: 5px; font-size: 0.8rem; color: #4caf50; }
+
+        .loading { display: none; text-align: center; padding: 15px; color: #00d4aa; }
+        .loading.active { display: block; }
+
+        .table-container { display: none; max-width: 1200px; margin: 0 auto; overflow-x: auto; }
+        .table-container.active { display: block; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        table th, table td { border: 1px solid #2a5a3a; padding: 5px 8px; text-align: right; white-space: nowrap; }
+        table th { background: #006644; color: #fff; font-weight: bold; text-align: center; }
+        .title-row td { background: #008855; color: #fff; font-weight: bold; text-align: center; font-size: 0.95rem; }
+        .section-header td { background: #005533; color: #fff; font-weight: bold; text-align: center; }
+        .section-label {
+            background: #004422 !important; color: #00d4aa !important; font-weight: bold;
+            text-align: center !important; writing-mode: vertical-rl; text-orientation: mixed;
+            transform: rotate(180deg); padding: 10px 4px !important;
+            font-size: 0.75rem; letter-spacing: 2px; min-width: 30px;
+        }
+        .data-row td { background: #e8f5e9; color: #1a3a1a; }
+        .data-row td.conta-name { text-align: left; }
+        .total-cell { background: #a5d6a7 !important; font-weight: bold; }
+        .total-cell.negative { background: #ffcdd2 !important; color: #c62828 !important; }
+        .obs-cell {
+            background: #c8e6c9 !important; text-align: left !important; min-width: 200px;
+            cursor: text; outline: none; white-space: normal;
+        }
+        .obs-cell:focus { background: #fff9c4 !important; border: 2px solid #ff9800 !important; }
+        .pdf-val { color: #1565c0; }
+        .error-msg { color: #ff6b6b; text-align: center; padding: 15px; display: none; }
+        .error-msg.active { display: block; }
+    </style>
+</head>
+<body>
+    <h1>FECHAMENTO DE CAIXA</h1>
+    <div class="info-bar" id="infoBar"></div>
+
+    <div class="uploads">
+        <div class="upload-area" id="uploadExcel">
+            <div class="icon">&#128202;</div>
+            <p>Balancete (RCO004)<br><small>.xlsx</small></p>
+            <input type="file" id="fileExcel" accept=".xlsx,.xls">
+            <div class="filename" id="fileNameExcel"></div>
+            <div class="status" id="statusExcel"></div>
+        </div>
+        <div class="upload-area pdf-upload" id="uploadPDF">
+            <div class="icon">&#128196;</div>
+            <p>Fechamento de Caixa (RPR064)<br><small>.pdf</small></p>
+            <input type="file" id="filePDF" accept=".pdf">
+            <div class="filename" id="fileNamePDF"></div>
+            <div class="status" id="statusPDF"></div>
+        </div>
+    </div>
+
+    <div class="loading" id="loading">Processando...</div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="table-container" id="tableContainer">
+        <table id="mainTable">
+            <thead>
+                <tr class="title-row">
+                    <td colspan="7">FECHAMENTO DE CAIXA</td>
+                    <td>OBSERVAÇÕES</td>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- VENDAS -->
+                <tr class="section-header">
+                    <td></td><td>CONTAS</td><td>CONTABILIDADE</td>
+                    <td>VENDAS 1</td><td>VENDAS 2</td><td>VENDAS 3</td><td>TOTAL</td><td></td>
+                </tr>
+                <tr class="data-row" data-section="vendas" data-row="veiculos_novos">
+                    <td rowspan="5" class="section-label">VENDAS</td>
+                    <td class="conta-name">VEÍCULOS NOVOS</td>
+                    <td class="contab-cell" id="vendas_veiculos_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="vendas" data-row="veiculos_semi_novos">
+                    <td class="conta-name">VEÍCULOS SEMI NOVOS</td>
+                    <td class="contab-cell" id="vendas_veiculos_semi_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="vendas" data-row="pecas_acessorios">
+                    <td class="conta-name">PEÇAS, ACESSÓRIOS</td>
+                    <td class="contab-cell" id="vendas_pecas_acessorios">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="vendas" data-row="servicos">
+                    <td class="conta-name">SERVIÇOS</td>
+                    <td class="contab-cell" id="vendas_servicos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="vendas" data-row="comissoes_recebidas">
+                    <td class="conta-name">COMISSÕES RECEBIDAS</td>
+                    <td class="contab-cell" id="vendas_comissoes_recebidas">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+
+                <!-- DEVOLUÇÕES -->
+                <tr class="section-header">
+                    <td></td><td>CONTAS</td><td>CONTABILIDADE</td>
+                    <td>DEVOLUÇÃO 1</td><td>DEVOLUÇÃO 2</td><td>DEVOLUÇÃO 3</td><td>TOTAL</td><td></td>
+                </tr>
+                <tr class="data-row" data-section="devolucoes" data-row="veiculos_novos">
+                    <td rowspan="4" class="section-label">DEVOLUÇÕES</td>
+                    <td class="conta-name">VEÍCULOS NOVOS</td>
+                    <td class="contab-cell" id="devolucoes_veiculos_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="devolucoes" data-row="veiculos_semi_novos">
+                    <td class="conta-name">VEÍCULOS SEMI NOVOS</td>
+                    <td class="contab-cell" id="devolucoes_veiculos_semi_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="devolucoes" data-row="pecas_acessorios">
+                    <td class="conta-name">PEÇAS, ACESSÓRIOS</td>
+                    <td class="contab-cell" id="devolucoes_pecas_acessorios">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="devolucoes" data-row="servicos">
+                    <td class="conta-name">SERVIÇOS</td>
+                    <td class="contab-cell" id="devolucoes_servicos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+
+                <!-- CUSTO -->
+                <tr class="section-header">
+                    <td></td><td>CONTAS</td><td>CONTABILIDADE</td>
+                    <td>CUSTO 1</td><td>CUSTO 2</td><td>CUSTO 3</td><td>TOTAL</td><td></td>
+                </tr>
+                <tr class="data-row" data-section="custo" data-row="veiculos_novos">
+                    <td rowspan="3" class="section-label">CUSTO</td>
+                    <td class="conta-name">VEÍCULOS NOVOS</td>
+                    <td class="contab-cell" id="custo_veiculos_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="custo" data-row="veiculos_semi_novos">
+                    <td class="conta-name">VEÍCULOS SEMI NOVOS</td>
+                    <td class="contab-cell" id="custo_veiculos_semi_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="custo" data-row="pecas_acessorios">
+                    <td class="conta-name">PEÇAS, ACESSÓRIOS</td>
+                    <td class="contab-cell" id="custo_pecas_acessorios">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+
+                <!-- CUSTO DEVOLUÇÃO -->
+                <tr class="section-header">
+                    <td></td><td>CONTAS</td><td>CONTABILIDADE</td>
+                    <td>CUSTO DEV. 1</td><td>CUSTO DEV. 2</td><td>CUSTO DEV. 3</td><td>TOTAL</td><td></td>
+                </tr>
+                <tr class="data-row" data-section="custo_devolucao" data-row="veiculos_novos">
+                    <td rowspan="3" class="section-label">CUSTO DEVOL.</td>
+                    <td class="conta-name">VEÍCULOS NOVOS</td>
+                    <td class="contab-cell" id="custo_devolucao_veiculos_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="custo_devolucao" data-row="veiculos_semi_novos">
+                    <td class="conta-name">VEÍCULOS SEMI NOVOS</td>
+                    <td class="contab-cell" id="custo_devolucao_veiculos_semi_novos">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+                <tr class="data-row" data-section="custo_devolucao" data-row="pecas_acessorios">
+                    <td class="conta-name">PEÇAS, ACESSÓRIOS</td>
+                    <td class="contab-cell" id="custo_devolucao_pecas_acessorios">-</td>
+                    <td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td><td class="val-cell pdf-val"></td>
+                    <td class="total-cell">-</td>
+                    <td class="obs-cell" contenteditable="true"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // ==================== BALANCETE (EXCEL) ====================
+        const VENDAS_ACCOUNTS = {
+            '3.1.1.001': 'veiculos_novos', '3.1.1.002': 'veiculos_semi_novos',
+            '3.1.1.003': 'pecas_acessorios', '3.1.1.004': 'servicos', '3.1.1.005': 'comissoes_recebidas',
+        };
+        const CUSTO_PREFIXES = {
+            '3.3.1.001.': 'veiculos_novos', '3.3.1.002.': 'veiculos_semi_novos', '3.3.1.003.': 'pecas_acessorios',
+        };
+        const COL_CONTA = 1, COL_DESCRICAO = 8, COL_DEBITO = 13, COL_CREDITO = 16;
+        const EXCLUDED_SUFFIXES = ['001000'];
+        const EXCLUDED_KEYWORDS = ['ESTORNO'];
+
+        function getCellNum(s, r, c) { const a = XLSX.utils.encode_cell({r,c}); const cl = s[a]; return cl ? (parseFloat(cl.v)||0) : 0; }
+        function getCellText(s, r, c) { const a = XLSX.utils.encode_cell({r,c}); const cl = s[a]; return cl ? String(cl.v||'').trim() : ''; }
+
+        function parseBalancete(wb) {
+            const s = wb.Sheets[wb.SheetNames[0]]; const rng = XLSX.utils.decode_range(s['!ref']);
+            const res = {
+                vendas: {veiculos_novos:0,veiculos_semi_novos:0,pecas_acessorios:0,servicos:0,comissoes_recebidas:0},
+                devolucoes: {veiculos_novos:0,veiculos_semi_novos:0,pecas_acessorios:0,servicos:0},
+                custo: {veiculos_novos:0,veiculos_semi_novos:0,pecas_acessorios:0},
+                custo_devolucao: {veiculos_novos:0,veiculos_semi_novos:0,pecas_acessorios:0},
+                periodo:'', empresa:''
+            };
+            for (let r=0;r<=15;r++) for (let c=rng.s.c;c<=rng.e.c;c++) {
+                const v=getCellText(s,r,c);
+                if(v.includes('CNPJ:')) res.empresa=v; if(v.includes('eriodo:')) res.periodo=v;
+            }
+            for (let r=16;r<=rng.e.r;r++) {
+                const ct=getCellText(s,r,COL_CONTA); if(!ct) continue;
+                const db=getCellNum(s,r,COL_DEBITO), cr=getCellNum(s,r,COL_CREDITO);
+                if(VENDAS_ACCOUNTS[ct]){const k=VENDAS_ACCOUNTS[ct];res.vendas[k]=cr;if(res.devolucoes.hasOwnProperty(k))res.devolucoes[k]=db;continue;}
+                for(const pf in CUSTO_PREFIXES){if(ct.startsWith(pf)){
+                    const sf=ct.substring(pf.length),desc=getCellText(s,r,COL_DESCRICAO).toUpperCase();
+                    if(!EXCLUDED_SUFFIXES.includes(sf)&&!EXCLUDED_KEYWORDS.some(kw=>desc.includes(kw))){
+                        const k=CUSTO_PREFIXES[pf];res.custo[k]+=db;res.custo_devolucao[k]+=cr;
+                    }break;
+                }}
+            }
+            return res;
+        }
+
+        // ==================== PDF PARSING ====================
+        function extractBRLNumbers(text) {
+            const regex = /-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+            const matches = text.match(regex) || [];
+            return matches.map(m => parseFloat(m.replace(/\./g, '').replace(',', '.')));
+        }
+
+        // Busca linha que contém EXATAMENTE "Total KEYWORD" e tem >=3 números
+        // exact=true: a keyword deve ser match exato (não pode ser substring de outra)
+        // Se a linha não tem números, olha as próximas 3 linhas (para quebras no PDF)
+        // Retorna a ÚLTIMA ocorrência encontrada (total de nível mais alto)
+        function findLastTotalLine(lines, keyword) {
+            let lastResult = null;
+            for (let i = 0; i < lines.length; i++) {
+                if (!lines[i].includes(keyword)) continue;
+                let nums = extractBRLNumbers(lines[i]);
+                if (nums.length >= 3) {
+                    lastResult = { valorLiquido: nums[0], reposicao: nums[1], custo: nums[2] };
+                    continue;
+                }
+                for (let j = 1; j <= 3 && (i+j) < lines.length; j++) {
+                    nums = extractBRLNumbers(lines[i+j]);
+                    if (nums.length >= 3) {
+                        lastResult = { valorLiquido: nums[0], reposicao: nums[1], custo: nums[2] };
+                        break;
+                    }
+                }
+            }
+            return lastResult;
+        }
+
+        // Busca PRIMEIRA linha que contém keyword e tem >=3 números (+ look-ahead)
+        function findFirstTotalLine(lines, keyword) {
+            for (let i = 0; i < lines.length; i++) {
+                if (!lines[i].includes(keyword)) continue;
+                let nums = extractBRLNumbers(lines[i]);
+                if (nums.length >= 3) {
+                    return { valorLiquido: nums[0], reposicao: nums[1], custo: nums[2] };
+                }
+                for (let j = 1; j <= 3 && (i+j) < lines.length; j++) {
+                    nums = extractBRLNumbers(lines[i+j]);
+                    if (nums.length >= 3) {
+                        return { valorLiquido: nums[0], reposicao: nums[1], custo: nums[2] };
+                    }
+                }
+            }
+            return null;
+        }
+
+        async function extractPDFText(arrayBuffer) {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                // Agrupar itens por posição Y (mesma linha) e juntar com espaço
+                let lastY = null;
+                for (const item of content.items) {
+                    const y = Math.round(item.transform[5]);
+                    if (lastY !== null && Math.abs(y - lastY) > 3) {
+                        fullText += '\n';
+                    }
+                    fullText += item.str;
+                    lastY = y;
+                }
+                fullText += '\n';
+            }
+            return fullText;
+        }
+
+        function parsePDF(fullText) {
+            const lines = fullText.split('\n');
+            const result = {
+                vendas: { veiculos_novos: [], veiculos_semi_novos: [], pecas_acessorios: [], servicos: [], comissoes_recebidas: [] },
+                devolucoes: { veiculos_novos: [], veiculos_semi_novos: [], pecas_acessorios: [], servicos: [] },
+                custo: { veiculos_novos: [], veiculos_semi_novos: [], pecas_acessorios: [] },
+                custo_devolucao: { veiculos_novos: [], veiculos_semi_novos: [], pecas_acessorios: [] },
+            };
+
+            // Helpers
+            function findFirst(kw) { return findFirstTotalLine(lines, kw); }
+            function findLast(kw) { return findLastTotalLine(lines, kw); }
+
+            // --- VENDAS (Valor Líquido = idx 0) ---
+            let d;
+            // VN: keyword específica "VN - VEICULOS" (NÃO confundir com "Total VEÍCULO")
+            d = findFirst('Total VN - VEICULOS');
+            if (!d) d = findFirst('Total VN -');
+            if (d) result.vendas.veiculos_novos.push(d.valorLiquido);
+
+            // SN: "Total SR - VEICULO SEMINOVOS SHOW ROOM"
+            d = findFirst('Total SR - VEICULO');
+            if (!d) d = findFirst('SEMINOVOS SHOW ROOM');
+            if (d) result.vendas.veiculos_semi_novos.push(d.valorLiquido);
+
+            // Peças: PRODUTO (oficina) + EXTERNAS (balcão)
+            d = findLast('Total PRODUTO');
+            if (d) result.vendas.pecas_acessorios.push(d.valorLiquido);
+            d = findLast('Total EXTERNAS');
+            if (!d) d = findLast('Total BALC');
+            if (d) result.vendas.pecas_acessorios.push(d.valorLiquido);
+
+            // Serviços: MÃO-DE-OBRA
+            d = findLast('Total MÃO-DE-OBRA');
+            if (!d) d = findLast('Total MAO-DE-OBRA');
+            if (d) result.vendas.servicos.push(d.valorLiquido);
+
+            // Comissões: OUTRAS VENDAS
+            d = findLast('Total OUTRAS VENDAS');
+            if (!d) d = findLast('Total OUTRAS');
+            if (d) result.vendas.comissoes_recebidas.push(d.valorLiquido);
+
+            // --- DEVOLUÇÕES (Valor Líquido absoluto) ---
+            // SN: "Total DEVOLUCAO DE VENDA VEICULOS"
+            d = findFirst('Total DEVOLUCAO DE VENDA VEICULOS');
+            if (!d) d = findFirst('Total DEVOLUÇÃO DE VENDA VEICULOS');
+            if (d) result.devolucoes.veiculos_semi_novos.push(Math.abs(d.valorLiquido));
+
+            // Peças: Atacado, Oficina, Varejo
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS ATACADO');
+            if (d) result.devolucoes.pecas_acessorios.push(Math.abs(d.valorLiquido));
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS OFICINA');
+            if (d) result.devolucoes.pecas_acessorios.push(Math.abs(d.valorLiquido));
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS VAREJO');
+            if (d) result.devolucoes.pecas_acessorios.push(Math.abs(d.valorLiquido));
+
+            // --- CUSTO (Custo = idx 2) ---
+            // VN: mesma linha que VENDAS VN
+            d = findFirst('Total VN - VEICULOS');
+            if (!d) d = findFirst('Total VN -');
+            if (d) result.custo.veiculos_novos.push(d.custo);
+
+            // SN
+            d = findFirst('Total SR - VEICULO');
+            if (!d) d = findFirst('SEMINOVOS SHOW ROOM');
+            if (d) result.custo.veiculos_semi_novos.push(d.custo);
+
+            // Peças: EXTERNAS (Custo) + PRODUTO (Custo)
+            d = findLast('Total EXTERNAS');
+            if (!d) d = findLast('Total BALC');
+            if (d) result.custo.pecas_acessorios.push(d.custo);
+            d = findLast('Total PRODUTO');
+            if (d) result.custo.pecas_acessorios.push(d.custo);
+
+            // --- CUSTO DEVOLUÇÃO (Custo absoluto) ---
+            d = findFirst('Total DEVOLUCAO DE VENDA VEICULOS');
+            if (!d) d = findFirst('Total DEVOLUÇÃO DE VENDA VEICULOS');
+            if (d) result.custo_devolucao.veiculos_semi_novos.push(Math.abs(d.custo));
+
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS ATACADO');
+            if (d) result.custo_devolucao.pecas_acessorios.push(Math.abs(d.custo));
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS OFICINA');
+            if (d) result.custo_devolucao.pecas_acessorios.push(Math.abs(d.custo));
+            d = findFirst('Total DEVOLUCAO DE VENDA PECAS VAREJO');
+            if (d) result.custo_devolucao.pecas_acessorios.push(Math.abs(d.custo));
+
+            return result;
+        }
+
+        // ==================== UI LOGIC ====================
+        function formatBRL(value) {
+            if (value === null || value === undefined || isNaN(value) || value === 0) return '-';
+            return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function parseBRL(text) {
+            if (!text || text === '-') return 0;
+            return parseFloat(text.replace(/\./g, '').replace(',', '.')) || 0;
+        }
+
+        function populateContabilidade(data) {
+            const infoBar = document.getElementById('infoBar');
+            const parts = [];
+            if (data.empresa) parts.push(data.empresa);
+            if (data.periodo) parts.push(data.periodo);
+            infoBar.innerHTML = parts.map(p => '<span>'+p+'</span>').join('');
+
+            ['vendas','devolucoes','custo','custo_devolucao'].forEach(sec => {
+                const sd = data[sec] || {};
+                Object.keys(sd).forEach(key => {
+                    const el = document.getElementById(sec+'_'+key);
+                    if (el) { el.textContent = formatBRL(sd[key]); el.dataset.value = sd[key] || 0; }
+                });
+            });
+            document.getElementById('tableContainer').classList.add('active');
+            recalcAllTotals();
+        }
+
+        function populatePDFValues(data) {
+            const rows = document.querySelectorAll('tr.data-row');
+            rows.forEach(row => {
+                const section = row.dataset.section;
+                const rowKey = row.dataset.row;
+                if (!section || !rowKey) return;
+                const values = data[section] && data[section][rowKey] ? data[section][rowKey] : [];
+                const valCells = row.querySelectorAll('td.val-cell');
+                valCells.forEach((cell, i) => {
+                    if (values[i] !== undefined && values[i] !== 0) {
+                        cell.textContent = formatBRL(values[i]);
+                        cell.dataset.value = values[i];
+                    }
+                });
+            });
+            document.getElementById('tableContainer').classList.add('active');
+            recalcAllTotals();
+        }
+
+        function recalcAllTotals() {
+            const rows = document.querySelectorAll('tr.data-row');
+            rows.forEach(row => {
+                const section = row.dataset.section;
+                const rowKey = row.dataset.row;
+                if (!section || !rowKey) return;
+
+                const contabCell = document.getElementById(section + '_' + rowKey);
+                const contabVal = contabCell ? parseFloat(contabCell.dataset.value || 0) : 0;
+
+                const valCells = row.querySelectorAll('td.val-cell');
+                let sumVals = 0;
+                valCells.forEach(cell => { sumVals += parseFloat(cell.dataset.value || 0); });
+
+                const totalCell = row.querySelector('td.total-cell');
+                if (totalCell) {
+                    const diff = contabVal - sumVals;
+                    totalCell.textContent = formatBRL(diff);
+                    totalCell.classList.toggle('negative', Math.abs(diff) > 0.01 && diff !== contabVal);
+                }
+            });
+        }
+
+        // ==================== FILE HANDLERS ====================
+        function handleExcel(file) {
+            document.getElementById('fileNameExcel').textContent = file.name;
+            document.getElementById('statusExcel').textContent = '';
+            document.getElementById('loading').classList.add('active');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, { type: 'array' });
+                    const result = parseBalancete(wb);
+                    populateContabilidade(result);
+                    document.getElementById('statusExcel').textContent = '✓ Processado';
+                } catch (err) {
+                    document.getElementById('errorMsg').textContent = 'Erro Excel: ' + err.message;
+                    document.getElementById('errorMsg').classList.add('active');
+                }
+                document.getElementById('loading').classList.remove('active');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function handlePDF(file) {
+            document.getElementById('fileNamePDF').textContent = file.name;
+            document.getElementById('statusPDF').textContent = '';
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('errorMsg').classList.remove('active');
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const fullText = await extractPDFText(arrayBuffer);
+                const result = parsePDF(fullText);
+                populatePDFValues(result);
+                document.getElementById('statusPDF').textContent = '✓ Processado';
+            } catch (err) {
+                document.getElementById('errorMsg').textContent = 'Erro PDF: ' + err.message;
+                document.getElementById('errorMsg').classList.add('active');
+            }
+            document.getElementById('loading').classList.remove('active');
+        }
+
+        // ==================== DRAG & DROP SETUP ====================
+        function setupUpload(areaId, inputId, handler) {
+            const area = document.getElementById(areaId);
+            const input = document.getElementById(inputId);
+            area.addEventListener('click', () => input.click());
+            area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('dragover'); });
+            area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+            area.addEventListener('drop', e => {
+                e.preventDefault(); area.classList.remove('dragover');
+                if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; handler(e.dataTransfer.files[0]); }
+            });
+            input.addEventListener('change', () => { if (input.files.length) handler(input.files[0]); });
+        }
+
+        setupUpload('uploadExcel', 'fileExcel', handleExcel);
+        setupUpload('uploadPDF', 'filePDF', handlePDF);
+    </script>
+</body>
+</html>
