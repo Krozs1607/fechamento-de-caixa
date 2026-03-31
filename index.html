@@ -370,15 +370,22 @@
 
             // --- VENDAS (Valor Líquido = idx 0) ---
             let d;
-            // VN: keyword específica "VN - VEICULOS" (NÃO confundir com "Total VEÍCULO")
-            d = findFirst('Total VN - VEICULOS');
-            if (!d) d = findFirst('Total VN -');
-            if (d) result.vendas.veiculos_novos.push(d.valorLiquido);
+            // VN: múltiplos estoques (VN, VNR, etc.)
+            const VN_KEYWORDS = ['Total VN - VEICULOS', 'Total VNR - VEICULO'];
+            for (const kw of VN_KEYWORDS) {
+                d = findFirst(kw);
+                if (d) result.vendas.veiculos_novos.push(d.valorLiquido);
+            }
 
-            // SN: "Total SR - VEICULO SEMINOVOS SHOW ROOM"
-            d = findFirst('Total SR - VEICULO');
-            if (!d) d = findFirst('SEMINOVOS SHOW ROOM');
-            if (d) result.vendas.veiculos_semi_novos.push(d.valorLiquido);
+            // SN: múltiplos estoques (SR, VR, VS, VU, VZ)
+            const SN_KEYWORDS = [
+                'Total SR - VEICULO', 'Total VR - VEICULOS', 'Total VS - VEICULOS',
+                'Total VU - VEICULOS', 'Total VZ - VEICULOS'
+            ];
+            for (const kw of SN_KEYWORDS) {
+                d = findFirst(kw);
+                if (d) result.vendas.veiculos_semi_novos.push(d.valorLiquido);
+            }
 
             // Peças: PRODUTO (oficina) + EXTERNAS (balcão)
             d = findLast('Total PRODUTO');
@@ -412,15 +419,17 @@
             if (d) result.devolucoes.pecas_acessorios.push(Math.abs(d.valorLiquido));
 
             // --- CUSTO (Custo = idx 2) ---
-            // VN: mesma linha que VENDAS VN
-            d = findFirst('Total VN - VEICULOS');
-            if (!d) d = findFirst('Total VN -');
-            if (d) result.custo.veiculos_novos.push(d.custo);
+            // VN: múltiplos estoques (VN, VNR)
+            for (const kw of VN_KEYWORDS) {
+                d = findFirst(kw);
+                if (d) result.custo.veiculos_novos.push(d.custo);
+            }
 
-            // SN
-            d = findFirst('Total SR - VEICULO');
-            if (!d) d = findFirst('SEMINOVOS SHOW ROOM');
-            if (d) result.custo.veiculos_semi_novos.push(d.custo);
+            // SN: múltiplos estoques (SR, VR, VS, VU, VZ)
+            for (const kw of SN_KEYWORDS) {
+                d = findFirst(kw);
+                if (d) result.custo.veiculos_semi_novos.push(d.custo);
+            }
 
             // Peças: EXTERNAS (Custo) + PRODUTO (Custo)
             d = findLast('Total EXTERNAS');
