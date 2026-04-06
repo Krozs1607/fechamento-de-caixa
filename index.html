@@ -405,9 +405,17 @@
             if (d) result.vendas.comissoes_recebidas.push(d.valorLiquido);
 
             // --- DEVOLUÇÕES (Valor Líquido absoluto) ---
-            // SN: "Total DEVOLUCAO DE VENDA VEICULOS"
-            d = findFirst('Total DEVOLUCAO DE VENDA VEICULOS');
-            if (!d) d = findFirst('Total DEVOLUÇÃO DE VENDA VEICULOS');
+            // VN: "DEVOLUCAO DE VENDA VEICULOS NOVOS"
+            d = findFirst('DEVOLUCAO DE VENDA VEICULOS NOVOS');
+            if (!d) d = findFirst('DEVOLUÇÃO DE VENDA VEICULOS NOVOS');
+            if (!d) d = findFirst('DEVOLUCAO DE VENDA VEICULOS NOVO');
+            if (d) result.devolucoes.veiculos_novos.push(Math.abs(d.valorLiquido));
+
+            // SN: "DEVOLUCAO DE VENDA VEICULOS USADOS" / "SEMINOVOS"
+            d = findFirst('DEVOLUCAO DE VENDA VEICULOS USADOS');
+            if (!d) d = findFirst('DEVOLUÇÃO DE VENDA VEICULOS USADOS');
+            if (!d) d = findFirst('DEVOLUCAO DE VENDA VEICULOS SEMINOVOS');
+            if (!d) d = findFirst('DEVOLUÇÃO DE VENDA VEICULOS SEMINOVOS');
             if (d) result.devolucoes.veiculos_semi_novos.push(Math.abs(d.valorLiquido));
 
             // Peças: Atacado, Oficina, Varejo
@@ -439,8 +447,16 @@
             if (d) result.custo.pecas_acessorios.push(d.custo);
 
             // --- CUSTO DEVOLUÇÃO (Custo absoluto) ---
-            d = findFirst('Total DEVOLUCAO DE VENDA VEICULOS');
-            if (!d) d = findFirst('Total DEVOLUÇÃO DE VENDA VEICULOS');
+            // VN
+            d = findFirst('DEVOLUCAO DE VENDA VEICULOS NOVOS');
+            if (!d) d = findFirst('DEVOLUÇÃO DE VENDA VEICULOS NOVOS');
+            if (!d) d = findFirst('DEVOLUCAO DE VENDA VEICULOS NOVO');
+            if (d) result.custo_devolucao.veiculos_novos.push(Math.abs(d.custo));
+
+            // SN
+            d = findFirst('DEVOLUCAO DE VENDA VEICULOS USADOS');
+            if (!d) d = findFirst('DEVOLUÇÃO DE VENDA VEICULOS USADOS');
+            if (!d) d = findFirst('DEVOLUCAO DE VENDA VEICULOS SEMINOVOS');
             if (d) result.custo_devolucao.veiculos_semi_novos.push(Math.abs(d.custo));
 
             d = findFirst('Total DEVOLUCAO DE VENDA PECAS ATACADO');
