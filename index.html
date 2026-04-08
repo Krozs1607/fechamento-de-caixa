@@ -793,71 +793,116 @@
             return res;
         }
 
-        // Parse Férias PDF - extract "Total Empresa" rows
-        // Rows: Ferias, 1/3 Ferias, INSS, FGTS
-        // Saldo = last number in each row
+        // Parse provision PDFs: labels and numbers are on SEPARATE lines
+        // Label line: "Férias" (no numbers)
+        // Data line:  "966.991,92  5.589,50  962.078,34 ..." (numbers)
+        // After "Total Empresa:", structure is: header, then label/data pairs
+        // Columns: Base, Dias, Anterior, Transferido, Ajuste, Provisão, Pagas, Indenizado, Saldo
+        // Saldo is the second-to-last non-zero number (index varies, but we use a fixed position)
+
+        function findProvSaldo(lines, startIdx, label) {
+            // Search from startIdx for the label, then get numbers from next line
+            for (let i = startIdx; i < Math.min(startIdx + 20, lines.length); i++) {
+                const line = lines[i].trim();
+                if (line.toLowerCase().includes(label.toLowerCase())) {
+                    // Numbers should be on the NEXT line (or same line for INSS/FGTS which sometimes have inline numbers)
+                    // Check if current line has enough numbers
+                    let nums = extractBRLNumbers(lines[i]);
+                    if (nums.length >= 7) return nums; // inline numbers (e.g., "INSS  82.285,80  27,78 ...")
+
+                    // Otherwise check next line
+                    if (i + 1 < lines.length) {
+                        nums = extractBRLNumbers(lines[i + 1]);
+                        if (nums.length >= 7) return nums;
+                    }
+                }
+            }
+            return null;
+        }
+
         function parseFeriasPDF(fullText) {
             const lines = fullText.split('\n');
             const res = { ferias_saldo: 0, terco_saldo: 0, inss_saldo: 0, fgts_saldo: 0 };
-            let inTotalEmpresa = false;
 
+            // Find "Total Empresa:" line
+            let teIdx = -1;
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (line.includes('Total Empresa') || line.includes('Total empresa') || line.includes('TOTAL EMPRESA')) {
-                    inTotalEmpresa = true;
-                    continue;
-                }
-                if (!inTotalEmpresa) continue;
-
-                const nums = extractBRLNumbers(line);
-                if (nums.length < 3) continue;
-                const saldo = nums[nums.length - 1]; // last number = Saldo
-
-                if (line.match(/1\/3\s*[Ff]erias/i) || line.includes('1/3 Ferias')) {
-                    res.terco_saldo = saldo;
-                } else if (line.match(/^[\s]*[Ff]erias/i) || line.includes('Ferias')) {
-                    res.ferias_saldo = saldo;
-                } else if (line.includes('INSS') || line.includes('Inss')) {
-                    res.inss_saldo = saldo;
-                } else if (line.includes('FGTS') || line.includes('Fgts')) {
-                    res.fgts_saldo = saldo;
-                }
-
-                // Stop after we've read all 4 rows + Total
-                if (line.includes('Total') && nums.length >= 3 && res.fgts_saldo !== 0) break;
+                if (lines[i].includes('Total Empresa')) { teIdx = i; break; }
             }
+            if (teIdx === -1) return res;
+
+            // Férias PDF columns: Base, Dias, Anterior, Transferido, Ajuste, Provisão, Pagas, Indenizado, Saldo
+            // Saldo is at index 7 (0-based) in the 9-number row
+            // But "Dias" has 4 decimals (5.589,5000) which regex captures as 5.589,50 + 00
+            // Let's find by label and get the number at a consistent position
+
+            // Search 1/3 FIRST (it appears after Férias in the PDF, but we search by label)
+            // Then search Férias - findProvSaldo skips "1/3 Férias" because we search exact start
+            const tercoNums = findProvSaldo(lines, teIdx, '1/3');
+
+            // For "Férias" (not "1/3 Férias"), search for line that starts with Férias
+            let ferNums = null;
+            for (let i = teIdx; i < Math.min(teIdx + 20, lines.length); i++) {
+                const trimmed = lines[i].trim();
+                if ((trimmed === 'Férias' || trimmed === 'Ferias') && !trimmed.includes('1/3')) {
+                    if (i + 1 < lines.length) {
+                        const nums = extractBRLNumbers(lines[i + 1]);
+                        if (nums.length >= 7) { ferNums = nums; break; }
+                    }
+                }
+            }
+            if (ferNums) {
+                res.ferias_saldo = ferNums[7] || 0;
+            }
+
+            if (tercoNums) {
+                res.terco_saldo = tercoNums[7] || 0;
+            }
+
+            const inssNums = findProvSaldo(lines, teIdx, 'INSS');
+            if (inssNums) {
+                res.inss_saldo = inssNums[7] || 0;
+            }
+
+            const fgtsNums = findProvSaldo(lines, teIdx, 'FGTS');
+            if (fgtsNums) {
+                res.fgts_saldo = fgtsNums[7] || 0;
+            }
+
             return res;
         }
 
-        // Parse 13° PDF - extract "Total Empresa" rows
-        // Rows: Mensal, INSS, FGTS
         function parse13PDF(fullText) {
             const lines = fullText.split('\n');
             const res = { mensal_saldo: 0, inss_saldo: 0, fgts_saldo: 0 };
-            let inTotalEmpresa = false;
 
+            let teIdx = -1;
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (line.includes('Total Empresa') || line.includes('Total empresa') || line.includes('TOTAL EMPRESA')) {
-                    inTotalEmpresa = true;
-                    continue;
-                }
-                if (!inTotalEmpresa) continue;
-
-                const nums = extractBRLNumbers(line);
-                if (nums.length < 3) continue;
-                const saldo = nums[nums.length - 1];
-
-                if (line.includes('Mensal') || line.includes('MENSAL') || line.includes('mensal')) {
-                    res.mensal_saldo = saldo;
-                } else if (line.includes('INSS') || line.includes('Inss')) {
-                    res.inss_saldo = saldo;
-                } else if (line.includes('FGTS') || line.includes('Fgts')) {
-                    res.fgts_saldo = saldo;
-                }
-
-                if (line.includes('Total') && nums.length >= 3 && res.fgts_saldo !== 0) break;
+                if (lines[i].includes('Total Empresa')) { teIdx = i; break; }
             }
+            if (teIdx === -1) return res;
+
+            // 13° PDF columns: Base, Dias, Anterior, Transferido, Provisão, Pago, Adiantado, Indenizado, Saldo
+            // Mensal nums: 988.198,00 | 417,00 | 81.722,33 | 1.633,73 | 82.218,31 | 903,28 | 5.490,50 | 1.676,13 | 162.994,96 | 0,00
+            // Saldo = index 8
+
+            const mensalNums = findProvSaldo(lines, teIdx, 'Mensal');
+            if (mensalNums) {
+                res.mensal_saldo = mensalNums[8] || 0;
+            }
+
+            const inssNums = findProvSaldo(lines, teIdx, 'INSS');
+            if (inssNums) {
+                // INSS has inline numbers: "INSS  82.285,80  27,78  22.702,49 ..."
+                // Saldo at index 8
+                res.inss_saldo = inssNums[8] || 0;
+            }
+
+            const fgtsNums = findProvSaldo(lines, teIdx, 'FGTS');
+            if (fgtsNums) {
+                res.fgts_saldo = fgtsNums[8] || 0;
+            }
+
             return res;
         }
 
