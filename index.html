@@ -69,12 +69,43 @@
         .pdf-val { color: #1565c0; }
         .error-msg { color: #ff6b6b; text-align: center; padding: 15px; display: none; }
         .error-msg.active { display: block; }
+
+        /* Tabs */
+        .tabs { display: flex; justify-content: center; gap: 5px; margin-bottom: 20px; }
+        .tab-btn {
+            padding: 10px 25px; border: 2px solid #00d4aa; border-radius: 8px 8px 0 0;
+            background: transparent; color: #00d4aa; cursor: pointer; font-size: 0.95rem;
+            font-weight: bold; transition: all 0.3s;
+        }
+        .tab-btn:hover { background: rgba(0, 212, 170, 0.15); }
+        .tab-btn.active { background: #00d4aa; color: #1a1a2e; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Provisões specific */
+        .prov-tables { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; max-width: 1200px; margin: 0 auto; }
+        .prov-left, .prov-right { flex: 1; min-width: 400px; }
+        .prov-title td { background: #b8860b !important; color: #fff; font-weight: bold; text-align: center; font-size: 0.95rem; }
+        .prov-header td { background: #8b6914 !important; color: #fff; font-weight: bold; text-align: center; }
+        .upload-area.pdf2-upload { border-color: #e91e63; background: rgba(233, 30, 99, 0.05); }
+        .upload-area.pdf2-upload:hover, .upload-area.pdf2-upload.dragover {
+            background: rgba(233, 30, 99, 0.15); border-color: #f48fb1;
+        }
+        .upload-area.pdf2-upload .filename { color: #e91e63; }
+        .diff-cell { background: #fff9c4 !important; font-weight: bold; color: #1a3a1a; }
     </style>
 </head>
 <body>
-    <h1>FECHAMENTO DE CAIXA</h1>
+    <h1 id="pageTitle">FECHAMENTO DE CAIXA</h1>
     <div class="info-bar" id="infoBar"></div>
 
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('fechamento')">Fechamento de Caixa</button>
+        <button class="tab-btn" onclick="switchTab('provisoes')">Provisões</button>
+    </div>
+
+    <!-- ==================== ABA FECHAMENTO ==================== -->
+    <div class="tab-content active" id="tab-fechamento">
     <div class="uploads">
         <div class="upload-area" id="uploadExcel">
             <div class="icon">&#128202;</div>
@@ -95,6 +126,7 @@
     <div class="loading" id="loading">Processando...</div>
     <div class="error-msg" id="errorMsg"></div>
 
+    <!-- ==================== ABA FECHAMENTO - TABELA ==================== -->
     <div class="table-container" id="tableContainer">
         <table id="mainTable">
             <thead>
@@ -239,9 +271,132 @@
             </tbody>
         </table>
     </div>
+    </div><!-- fim tab-fechamento -->
+
+    <!-- ==================== ABA PROVISÕES ==================== -->
+    <div class="tab-content" id="tab-provisoes">
+        <div class="uploads">
+            <div class="upload-area" id="uploadExcelProv">
+                <div class="icon">&#128202;</div>
+                <p>Balancete (RCO004)<br><small>.xlsx</small></p>
+                <input type="file" id="fileExcelProv" accept=".xlsx,.xls">
+                <div class="filename" id="fileNameExcelProv"></div>
+                <div class="status" id="statusExcelProv"></div>
+            </div>
+            <div class="upload-area pdf-upload" id="uploadPDFFerias">
+                <div class="icon">&#128196;</div>
+                <p>PDF Férias<br><small>.pdf</small></p>
+                <input type="file" id="filePDFFerias" accept=".pdf">
+                <div class="filename" id="fileNamePDFFerias"></div>
+                <div class="status" id="statusPDFFerias"></div>
+            </div>
+            <div class="upload-area pdf2-upload" id="uploadPDF13">
+                <div class="icon">&#128196;</div>
+                <p>PDF 13° Salário<br><small>.pdf</small></p>
+                <input type="file" id="filePDF13" accept=".pdf">
+                <div class="filename" id="fileNamePDF13"></div>
+                <div class="status" id="statusPDF13"></div>
+            </div>
+        </div>
+
+        <div class="loading" id="loadingProv">Processando...</div>
+        <div class="error-msg" id="errorMsgProv"></div>
+
+        <div class="table-container" id="tableContainerProv">
+            <div class="prov-tables">
+                <!-- TABELA ESQUERDA: PROV.1, PROV.2, CONTAB, DIFERENÇA -->
+                <div class="prov-left">
+                    <table>
+                        <thead>
+                            <tr class="prov-title"><td colspan="5" id="provTitleLeft">PROVISÕES</td></tr>
+                        </thead>
+                        <tbody>
+                            <tr class="prov-header">
+                                <td>CONTAS</td><td>PROV. 1</td><td>PROV. 2</td><td>CONTAB.</td><td>DIFERENÇA</td>
+                            </tr>
+                            <tr class="data-row" data-prov="ferias">
+                                <td class="conta-name">FÉRIAS</td>
+                                <td class="prov1-cell" id="prov1_ferias">-</td>
+                                <td class="prov2-cell" id="prov2_ferias">-</td>
+                                <td class="contab-prov-cell" id="contab_ferias">-</td>
+                                <td class="diff-cell" id="diff_ferias">-</td>
+                            </tr>
+                            <tr class="data-row" data-prov="13sal">
+                                <td class="conta-name">13° SAL</td>
+                                <td class="prov1-cell" id="prov1_13sal">-</td>
+                                <td class="prov2-cell" id="prov2_13sal">-</td>
+                                <td class="contab-prov-cell" id="contab_13sal">-</td>
+                                <td class="diff-cell" id="diff_13sal">-</td>
+                            </tr>
+                            <tr class="data-row" data-prov="fgts">
+                                <td class="conta-name">FGTS</td>
+                                <td class="prov1-cell" id="prov1_fgts">-</td>
+                                <td class="prov2-cell" id="prov2_fgts">-</td>
+                                <td class="contab-prov-cell" id="contab_fgts">-</td>
+                                <td class="diff-cell" id="diff_fgts">-</td>
+                            </tr>
+                            <tr class="data-row" data-prov="inss">
+                                <td class="conta-name">INSS</td>
+                                <td class="prov1-cell" id="prov1_inss">-</td>
+                                <td class="prov2-cell" id="prov2_inss">-</td>
+                                <td class="contab-prov-cell" id="contab_inss">-</td>
+                                <td class="diff-cell" id="diff_inss">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- TABELA DIREITA: VN, ACESS, MEC, TOTAL -->
+                <div class="prov-right">
+                    <table>
+                        <thead>
+                            <tr class="prov-title"><td colspan="4" id="provTitleRight">PROVISÕES - DETALHAMENTO</td></tr>
+                        </thead>
+                        <tbody>
+                            <tr class="prov-header">
+                                <td>VN</td><td>ACESS</td><td>MEC</td><td>TOTAL</td>
+                            </tr>
+                            <tr class="data-row">
+                                <td id="det_ferias_vn">-</td>
+                                <td id="det_ferias_acess">-</td>
+                                <td id="det_ferias_mec">-</td>
+                                <td id="det_ferias_total" class="diff-cell">-</td>
+                            </tr>
+                            <tr class="data-row">
+                                <td id="det_13sal_vn">-</td>
+                                <td id="det_13sal_acess">-</td>
+                                <td id="det_13sal_mec">-</td>
+                                <td id="det_13sal_total" class="diff-cell">-</td>
+                            </tr>
+                            <tr class="data-row">
+                                <td id="det_fgts_vn">-</td>
+                                <td id="det_fgts_acess">-</td>
+                                <td id="det_fgts_mec">-</td>
+                                <td id="det_fgts_total" class="diff-cell">-</td>
+                            </tr>
+                            <tr class="data-row">
+                                <td id="det_inss_vn">-</td>
+                                <td id="det_inss_acess">-</td>
+                                <td id="det_inss_mec">-</td>
+                                <td id="det_inss_total" class="diff-cell">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div><!-- fim tab-provisoes -->
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // ==================== TAB SWITCHING ====================
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+            document.getElementById('pageTitle').textContent = tabName === 'fechamento' ? 'FECHAMENTO DE CAIXA' : 'PROVISÕES';
+        }
 
         // ==================== BALANCETE (EXCEL) ====================
         const VENDAS_ACCOUNTS = {
@@ -596,6 +751,240 @@
 
         setupUpload('uploadExcel', 'fileExcel', handleExcel);
         setupUpload('uploadPDF', 'filePDF', handlePDF);
+
+        // ==================== PROVISÕES ====================
+        // Balancete accounts for CONTAB column
+        const PROV_ACCOUNTS = {
+            '2.1.4.001.000003': 'ferias',      // PROVISAO P/ FERIAS
+            '2.1.4.001.000006': '13sal',        // PROVISAO P/ 13o SALARIO
+            '2.1.4.001.000007': 'fgts',         // PROVISAO P/ FGTS 13o SALARIO
+            '2.1.4.001.000008': 'inss',         // PROVISAO P/ INSS 13o SALARIO
+        };
+
+        // Cost center mapping for VN/ACESS/MEC breakdown
+        const DEPT_MAP = {
+            '001000': 'vn', '002000': 'vn',     // VN + Seminovos → VN
+            '007000': 'acess',                    // Acessorio
+            '004000': 'mec', '010000': 'mec',    // Mecanica + Produtivo → MEC
+        };
+
+        function parseBalanceteProvisoes(wb) {
+            const s = wb.Sheets[wb.SheetNames[0]];
+            const rng = XLSX.utils.decode_range(s['!ref']);
+            const res = { ferias: 0, '13sal': 0, fgts: 0, inss: 0, empresa: '', periodo: '' };
+
+            for (let r = 0; r <= 15; r++) for (let c = rng.s.c; c <= rng.e.c; c++) {
+                const v = getCellText(s, r, c);
+                if (v.includes('CNPJ:')) res.empresa = v;
+                if (v.includes('eriodo:')) res.periodo = v;
+            }
+
+            // Saldo Atual column (index 19 = column T)
+            const COL_SALDO = 19;
+            for (let r = 16; r <= rng.e.r; r++) {
+                const ct = getCellText(s, r, COL_CONTA);
+                if (!ct) continue;
+                if (PROV_ACCOUNTS[ct]) {
+                    const key = PROV_ACCOUNTS[ct];
+                    const saldo = getCellNum(s, r, COL_SALDO);
+                    res[key] = Math.abs(saldo);
+                }
+            }
+            return res;
+        }
+
+        // Parse Férias PDF - extract "Total Empresa" rows
+        // Rows: Ferias, 1/3 Ferias, INSS, FGTS
+        // Saldo = last number in each row
+        function parseFeriasPDF(fullText) {
+            const lines = fullText.split('\n');
+            const res = { ferias_saldo: 0, terco_saldo: 0, inss_saldo: 0, fgts_saldo: 0 };
+            let inTotalEmpresa = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('Total Empresa') || line.includes('Total empresa') || line.includes('TOTAL EMPRESA')) {
+                    inTotalEmpresa = true;
+                    continue;
+                }
+                if (!inTotalEmpresa) continue;
+
+                const nums = extractBRLNumbers(line);
+                if (nums.length < 3) continue;
+                const saldo = nums[nums.length - 1]; // last number = Saldo
+
+                if (line.match(/1\/3\s*[Ff]erias/i) || line.includes('1/3 Ferias')) {
+                    res.terco_saldo = saldo;
+                } else if (line.match(/^[\s]*[Ff]erias/i) || line.includes('Ferias')) {
+                    res.ferias_saldo = saldo;
+                } else if (line.includes('INSS') || line.includes('Inss')) {
+                    res.inss_saldo = saldo;
+                } else if (line.includes('FGTS') || line.includes('Fgts')) {
+                    res.fgts_saldo = saldo;
+                }
+
+                // Stop after we've read all 4 rows + Total
+                if (line.includes('Total') && nums.length >= 3 && res.fgts_saldo !== 0) break;
+            }
+            return res;
+        }
+
+        // Parse 13° PDF - extract "Total Empresa" rows
+        // Rows: Mensal, INSS, FGTS
+        function parse13PDF(fullText) {
+            const lines = fullText.split('\n');
+            const res = { mensal_saldo: 0, inss_saldo: 0, fgts_saldo: 0 };
+            let inTotalEmpresa = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('Total Empresa') || line.includes('Total empresa') || line.includes('TOTAL EMPRESA')) {
+                    inTotalEmpresa = true;
+                    continue;
+                }
+                if (!inTotalEmpresa) continue;
+
+                const nums = extractBRLNumbers(line);
+                if (nums.length < 3) continue;
+                const saldo = nums[nums.length - 1];
+
+                if (line.includes('Mensal') || line.includes('MENSAL') || line.includes('mensal')) {
+                    res.mensal_saldo = saldo;
+                } else if (line.includes('INSS') || line.includes('Inss')) {
+                    res.inss_saldo = saldo;
+                } else if (line.includes('FGTS') || line.includes('Fgts')) {
+                    res.fgts_saldo = saldo;
+                }
+
+                if (line.includes('Total') && nums.length >= 3 && res.fgts_saldo !== 0) break;
+            }
+            return res;
+        }
+
+        // Store provision data globally for recalculation
+        let provData = { prov1: {}, prov2: {}, contab: {} };
+
+        function populateProvContab(data) {
+            provData.contab = data;
+            const infoBar = document.getElementById('infoBar');
+            if (data.empresa) {
+                const parts = [];
+                if (data.empresa) parts.push(data.empresa);
+                if (data.periodo) parts.push(data.periodo);
+                infoBar.innerHTML = parts.map(p => '<span>' + p + '</span>').join('');
+            }
+
+            ['ferias', '13sal', 'fgts', 'inss'].forEach(k => {
+                const el = document.getElementById('contab_' + k);
+                if (el && data[k]) { el.textContent = formatBRL(data[k]); el.dataset.value = data[k]; }
+            });
+            document.getElementById('tableContainerProv').classList.add('active');
+            recalcProvDiff();
+        }
+
+        function populateProvFerias(data) {
+            provData.prov1 = data;
+            // PROV.1: Férias=ferias_saldo, 1/3=terco (goes to PROV.2 for ferias row)
+            // FÉRIAS row: PROV.1 = ferias_saldo + terco_saldo
+            const ferTotal = data.ferias_saldo + data.terco_saldo;
+            setProvCell('prov1_ferias', data.ferias_saldo);
+            setProvCell('prov2_ferias', data.terco_saldo);
+            setProvCell('prov1_fgts', data.fgts_saldo);
+            setProvCell('prov1_inss', data.inss_saldo);
+            document.getElementById('tableContainerProv').classList.add('active');
+            recalcProvDiff();
+        }
+
+        function populateProv13(data) {
+            provData.prov2 = data;
+            setProvCell('prov2_13sal', data.mensal_saldo);
+            setProvCell('prov2_fgts', data.fgts_saldo);
+            setProvCell('prov2_inss', data.inss_saldo);
+            document.getElementById('tableContainerProv').classList.add('active');
+            recalcProvDiff();
+        }
+
+        function setProvCell(id, value) {
+            const el = document.getElementById(id);
+            if (el && value) { el.textContent = formatBRL(value); el.dataset.value = value; }
+        }
+
+        function recalcProvDiff() {
+            ['ferias', '13sal', 'fgts', 'inss'].forEach(k => {
+                const p1 = parseFloat(document.getElementById('prov1_' + k)?.dataset?.value || 0);
+                const p2 = parseFloat(document.getElementById('prov2_' + k)?.dataset?.value || 0);
+                const ct = parseFloat(document.getElementById('contab_' + k)?.dataset?.value || 0);
+                const diff = (p1 + p2) - ct;
+                const el = document.getElementById('diff_' + k);
+                if (el) {
+                    el.textContent = formatBRL(diff);
+                    el.dataset.value = diff;
+                }
+                // Also update right-side TOTAL to match diff
+                const totalEl = document.getElementById('det_' + k + '_total');
+                if (totalEl) { totalEl.textContent = formatBRL(diff); }
+            });
+        }
+
+        // Provisões file handlers
+        function handleExcelProv(file) {
+            document.getElementById('fileNameExcelProv').textContent = file.name;
+            document.getElementById('statusExcelProv').textContent = '';
+            document.getElementById('loadingProv').classList.add('active');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, { type: 'array' });
+                    const result = parseBalanceteProvisoes(wb);
+                    populateProvContab(result);
+                    document.getElementById('statusExcelProv').textContent = '✓ Processado';
+                } catch (err) {
+                    document.getElementById('errorMsgProv').textContent = 'Erro Excel: ' + err.message;
+                    document.getElementById('errorMsgProv').classList.add('active');
+                }
+                document.getElementById('loadingProv').classList.remove('active');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function handlePDFFerias(file) {
+            document.getElementById('fileNamePDFFerias').textContent = file.name;
+            document.getElementById('statusPDFFerias').textContent = '';
+            document.getElementById('loadingProv').classList.add('active');
+            try {
+                const ab = await file.arrayBuffer();
+                const text = await extractPDFText(ab);
+                const result = parseFeriasPDF(text);
+                populateProvFerias(result);
+                document.getElementById('statusPDFFerias').textContent = '✓ Processado';
+            } catch (err) {
+                document.getElementById('errorMsgProv').textContent = 'Erro PDF Férias: ' + err.message;
+                document.getElementById('errorMsgProv').classList.add('active');
+            }
+            document.getElementById('loadingProv').classList.remove('active');
+        }
+
+        async function handlePDF13(file) {
+            document.getElementById('fileNamePDF13').textContent = file.name;
+            document.getElementById('statusPDF13').textContent = '';
+            document.getElementById('loadingProv').classList.add('active');
+            try {
+                const ab = await file.arrayBuffer();
+                const text = await extractPDFText(ab);
+                const result = parse13PDF(text);
+                populateProv13(result);
+                document.getElementById('statusPDF13').textContent = '✓ Processado';
+            } catch (err) {
+                document.getElementById('errorMsgProv').textContent = 'Erro PDF 13°: ' + err.message;
+                document.getElementById('errorMsgProv').classList.add('active');
+            }
+            document.getElementById('loadingProv').classList.remove('active');
+        }
+
+        setupUpload('uploadExcelProv', 'fileExcelProv', handleExcelProv);
+        setupUpload('uploadPDFFerias', 'filePDFFerias', handlePDFFerias);
+        setupUpload('uploadPDF13', 'filePDF13', handlePDF13);
     </script>
 </body>
 </html>
